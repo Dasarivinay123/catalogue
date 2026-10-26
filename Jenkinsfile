@@ -33,13 +33,7 @@ pipeline {
         stage('Build') {
             steps {
                script {
-                    echo 'Building..'
-                    echo "Course name is ${course}"
-                    echo "Hello ${params.PERSON}"
-                    echo "Biography: ${params.BIOGRAPHY}"
-                    echo "Toggle: ${params.TOGGLE}"
-                    echo "Choice: ${params.CHOICE}"
-                    echo "Password: ${params.PASSWORD}"
+                   echo "version is ${appVersion}"
                 }
             }
         }
