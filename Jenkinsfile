@@ -39,10 +39,12 @@ pipeline {
                 }
             }
         }
-        stage('Test') {
+        stage('Docker Build') {
             steps {
                 script {
-                    echo 'Testing..'
+                    sh """
+                        docker build -t catalogue:${appVersion} .
+                    """
                 }
             }
         }
