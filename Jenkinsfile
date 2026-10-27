@@ -4,77 +4,81 @@ pipeline {
             label 'ROBOSHOP'
         }
     }
-
     environment {
-        APP_VERSION = ''
-        acc_id = '039077527503'
-        project = 'roboshop'
-        component = 'catalogue'
+        def appVersion = "" 
+        acc_id = "039077527503"
+        project = "roboshop"
+        component = "catalogue"
     }
-
-    options {
+     options {
         disableConcurrentBuilds()
         timeout(time: 15, unit: 'MINUTES')
     }
-
+    // parameters {
+    //     string(name: 'PERSON', defaultValue: 'Mr Jenkins', description: 'Who should I say hello to?')
+    //     text(name: 'BIOGRAPHY', defaultValue: '', description: 'Enter some information about the person')
+    //     booleanParam(name: 'DEPLOY', defaultValue: true, description: 'Toggle this value')
+    //     choice(name: 'CHOICE', choices: ['One', 'Two', 'Three'], description: 'Pick something')
+    //     password(name: 'PASSWORD', defaultValue: 'SECRET', description: 'Enter a password')
+    // }       
+    // Build
     stages {
-        stage('Read version') {
-            steps {
+        stage('Read version'){
+            steps{
                 script {
                     def packageJson = readJSON file: 'package.json'
-                    env.APP_VERSION = packageJson.version
-                    echo "The application version is: ${env.APP_VERSION}"
+                    // Extract the version property
+                    appVersion = packageJson.version
+                    echo "The application version is: ${appVersion}"
                 }
             }
         }
-
         stage('Install Dependencies') {
             steps {
-                sh 'npm install'
+               script {
+                   sh """
+                        npm install
+                    """
+                }
             }
         }
-
+        // this command gives us coverage report and test cases report, sonarqube access this to check quality gate
         stage('Unit tests') {
             steps {
-                sh 'npm test'
+                script {
+                    sh """
+                        npm test
+                    """
+                } 
             }
         }
-
         stage('SonarQube Analysis') {
             steps {
+                // 'SonarQube-Server' must match the server name in Manage Jenkins -> System
                 withSonarQubeEnv('sonar-server') {
                     sh "${tool 'sonar-8'}/bin/sonar-scanner"
                 }
             }
         }
-
         stage('SonarQube Quality Gate') {
             steps {
                 timeout(time: 10, unit: 'MINUTES') {
                     script {
-                        def qg = waitForQualityGate()
-
+                        def qg = waitForQualityGate() // Pauses pipeline
                         if (qg.status != 'OK') {
-                            error "Pipeline stopped: SonarQube Quality Gate status is ${qg.status}"
+                            error "Pipeline aborted: ${qg.status}"
                         }
-
-                        echo 'SonarQube Quality Gate passed.'
                     }
                 }
             }
         }
-
         stage('Check Dependabot Alerts') {
             steps {
-                withCredentials([
-                    string(credentialsId: 'github-token', variable: 'GH_TOKEN')
-                ]) {
+                withCredentials([string(credentialsId: 'github-token', variable: 'GH_TOKEN')]) {
                     sh '''
                         set -eu
 
                         REPO="Dasarivinay123/catalogue"
-
-                        echo "Checking open Dependabot alerts for ${REPO}"
 
                         curl --fail --silent --show-error --location \
                             -H "Accept: application/vnd.github+json" \
@@ -84,8 +88,6 @@ pipeline {
                             -o alerts.json
 
                         echo "---- Open Dependabot Alerts ----"
-
-                        jq -e 'type == "array"' alerts.json > /dev/null
 
                         jq -r '.[] | "\(.number)\t\(.security_vulnerability.severity)\t\(.dependency.package.name)\t\(.security_advisory.ghsa_id)"' alerts.json
 
@@ -97,73 +99,57 @@ pipeline {
                         echo "High/Critical alert count: ${HIGH_CRITICAL_COUNT}"
 
                         if [ "${HIGH_CRITICAL_COUNT}" -gt 0 ]; then
-                            echo "ERROR: Found ${HIGH_CRITICAL_COUNT} open high/critical Dependabot alert(s)."
-                            echo "Docker build and deployment will not proceed."
+                            echo "Found ${HIGH_CRITICAL_COUNT} high/critical dependency alert(s). Failing build."
                             exit 1
                         else
-                            echo "No open high/critical Dependabot alerts found."
+                            echo "No high/critical dependency alerts found."
                         fi
                     '''
                 }
             }
         }
-
         stage('Docker Build') {
             steps {
-                withAWS(credentials: 'aws_creds', region: 'us-east-1') {
-                    sh '''
-                        set -eu
-
-                        IMAGE="${acc_id}.dkr.ecr.us-east-1.amazonaws.com/${project}/${component}:${APP_VERSION}"
-
-                        aws ecr get-login-password --region us-east-1 |
-                            docker login \
-                                --username AWS \
-                                --password-stdin "${acc_id}.dkr.ecr.us-east-1.amazonaws.com"
-
-                        docker build -t "${IMAGE}" .
-                        docker push "${IMAGE}"
-                    '''
+                script {
+                     // in this block we get aws authentication
+                    withAWS(credentials: 'aws_creds', region: 'us-east-1') {
+                        sh """
+                            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${acc_id}.dkr.ecr.us-east-1.amazonaws.com
+                            docker build -t ${acc_id}.dkr.ecr.us-east-1.amazonaws.com/${project}/${component}:${appVersion} .
+                            docker push ${acc_id}.dkr.ecr.us-east-1.amazonaws.com/${project}/${component}:${appVersion}
+                        """
+                    }
                 }
             }
         }
-
         stage('Deploy') {
             when {
                 expression { return params.DEPLOY }
             }
-
             input {
-                message 'Should we continue?'
-                ok 'Yes, we should.'
-                submitter 'alice,bob'
-
+                message "Should we continue?"
+                ok "Yes, we should."
+                submitter "alice,bob"
                 parameters {
-                    string(
-                        name: 'PERSON',
-                        defaultValue: 'Mr Jenkins',
-                        description: 'Who should I say hello to?'
-                    )
+                    string(name: 'PERSON', defaultValue: 'Mr Jenkins', description: 'Who should I say hello to?')
                 }
             }
-
             steps {
-                echo 'Deploying....'
+                script {
+                    echo 'Deploying....'
+                }
             }
         }
     }
-
-    post {
-        always {
+    post { 
+        always { 
             echo 'I will always say Hello again!'
         }
-
         success {
-            echo 'I will run when it is successful!'
-        }
-
+                echo 'I will run when it is successful!'
+            }
         failure {
-            echo 'I will run when it is failed!'
-        }
+                echo 'I will run when it is failed!'
+            }
     }
 }
