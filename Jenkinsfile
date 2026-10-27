@@ -42,6 +42,16 @@ pipeline {
                 }
             }
         }
+        // this command gives us coverage report and test cases report, sonarqube access this to check quality gate
+        stage('Unit tests') {
+            steps {
+                script {
+                    sh """
+                        npm test
+                    """
+                } 
+            }
+        }
         stage('SonarQube Analysis') {
             steps {
                 // 'SonarQube-Server' must match the server name in Manage Jenkins -> System
