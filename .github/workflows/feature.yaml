@@ -22,4 +22,4 @@ jobs:
     runs-on:  ubuntu-latest
     steps:
       - name: main workflow
-        run: echo "this runs when a commit comes to main branch!"
+        run: echo "this runs when a commit comes to main branch!!"
