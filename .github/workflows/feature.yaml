@@ -12,6 +12,11 @@ jobs:
     with:
       project: roboshop
       component: catalogue
+    permissions:
+      contents: write
+      pull-requests: write
+      statuses: write
+    secrets: inherit
 
   main-workflow:
     runs-on:  ubuntu-latest
